@@ -1,6 +1,7 @@
 #! /bin/bash
 # MAKE SURE GCP PROJECT IS SET
 # gcloud config set project PROJECT_ID
+gcloud config set project playground-s-11-2f33e9e8
 if [[ -z "${GOOGLE_CLOUD_PROJECT}" ]]; then
     echo "Project has not been set! Please run:"
     echo "   gcloud config set project PROJECT_ID"
