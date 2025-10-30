@@ -4,8 +4,30 @@ import os
 import datetime
 
 def processline(line):
-    outputrow = {'message' : line}
-    yield outputrow
+    strline = line.decode('utf-8').strip()  # decode bytes from Pub/Sub
+    parameters = strline.split(",")
+   
+    try:
+        if len(parameters) != 7:
+            yield beam.pvalue.TaggedOutput('malformed', {'message': strline})
+            return
+
+        outputrow = {
+        'timestamp': parameters[0],
+        'ipaddr': parameters[1],
+        'action': parameters[2],
+        'srcacct': parameters[3],
+        'destacct': parameters[4],
+        'amount': float(parameters[5]),
+        'customername': parameters[6],
+        }
+
+    # Valid record goes to main output
+        yield outputrow
+
+    except Exception:
+        # Catch parse errors (e.g. amount not numeric)
+        yield beam.pvalue.TaggedOutput('malformed', {'message': strline})
 
 
 def run():
@@ -30,16 +52,19 @@ def run():
     ]
 
     p = beam.Pipeline(argv=argv)
-    subscription = "projects/" + projectname + "/subscriptions/activities-subscription"
-    outputtable = projectname + ":mars.raw"
+    subscription = "projects/" + projectname + "/subscriptions/mars-activities"
+    outputtable = projectname + ":mars.activities"
+    errortable = projectname + ":mars.raw"
     
     print("Starting Beam Job - next step start the pipeline")
-    (p
-     | 'Read Messages' >> beam.io.ReadFromPubSub(subscription=subscription)
-     | 'Process Lines' >> beam.FlatMap(lambda line: processline(line))
-     | 'Write Output' >> beam.io.WriteToBigQuery(outputtable)
-     )
-    p.run()
+    processed = (
+        p
+        | 'Read Messages' >> beam.io.ReadFromPubSub(subscription=subscription)
+        | 'Process Lines' >> beam.FlatMap(processline).with_outputs('malformed', main='valid')
+    )
+    processed.valid | 'Write Valid' >> beam.io.WriteToBigQuery(outputtable)
+    processed.malformed | 'Write Malformed' >> beam.io.WriteToBigQuery(errortable)
+    p.run().wait_until_finish()
 
 
 if __name__ == '__main__':
