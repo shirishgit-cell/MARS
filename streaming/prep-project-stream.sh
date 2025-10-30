@@ -22,4 +22,5 @@ else
     bq mk --schema message:STRING -t mars.raw
     gcloud pubsub topics create activities-topic
     gcloud pubsub subscriptions create activities-subscription --topic activities-topic
+    gcloud pubsub subscriptions create mars-activities --topic projects/moonbank-mars/topics/activities
 fi
